@@ -1,7 +1,8 @@
 use itertools::Itertools;
 use std::fmt;
+#[macro_use] extern crate itertools;
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 enum Ops {
     Add,
     Sub,
@@ -38,54 +39,36 @@ impl fmt::Display for Ops {
     }
 }
 
-/*
-#[derive(Clone)]
-struct Sdata {
-    opt: Ops,
-    data: i32,
-}
+fn product_ops(vector: &[Ops], n: usize) -> Vec<Vec<Ops>> {
+    let mut result: Vec<Vec<Ops>> = vec![vec![]];
 
-impl fmt::Display for Sdata {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.opt == Ops::Num {
-            write!(f, "{}", self.data)
-        } else {
-            match self.opt {
-                Ops::Add => {
-                    write!(f, "+")
-                }
-                Ops::Sub => {
-                    write!(f, "-")
-                }
-                Ops::Mult => {
-                    write!(f, "*")
-                }
-                Ops::Div => {
-                    write!(f, "/")
-                }
-                _ => {
-                    write!(f, "NA")
-                }
-            }
-        }
+    for _ in 0..n {
+        result = iproduct!(result.iter(), vector.iter())
+            .map(|(v, x)| {
+                let mut v1 = v.clone();
+                v1.push(*x);
+                v1
+            })
+            .collect();
     }
+    result
 }
 
 
-impl fmt::Debug for Sdata {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.opt == Ops::Num {
-            f.debug_struct("Sdata")
-                .field("data", &self.data)
-                .finish()
-        } else {
-            f.debug_struct("Sdata")
-                .field("opt", &self.opt)
-                .finish()
-        }
+fn product(vector: &[i32], n: i32) -> Vec<Vec<i32>> {
+    let mut result: Vec<Vec<i32>> = vec![vec![]];
+
+    for _ in 0..n {
+        result = iproduct!(result.iter(), vector.iter())
+            .map(|(v, x)| {
+                let mut v1 = v.clone();
+                v1.push(*x);
+                v1
+            })
+            .collect();
     }
+    result
 }
-*/
 
 
 /// Reverse Polish Notation from vector
@@ -120,7 +103,7 @@ fn rpn_vec(rvec: &Vec<Ops>) -> i32 {
                 let b = stack.pop().expect("missing first operand");
                 let a = stack.pop().expect("missing second operand");
                 if b == 0 {
-                    println!("ERROR: div by zero {}/{}", a, b);
+                    if debug {println!("ERROR: div by zero {}/{}", a, b);}
                     return -9900;
                 }  else if a % b != 0 {
                     if debug {println!("ERROR: div remainder {}/{} = {} rem {}", a, b, a / b , a % b );}
@@ -209,13 +192,13 @@ fn gen_rpn(nums:&[i32], ans: i32) -> i32 { //Vec<Sdata> {
     // TOD: use a tree instead of vect
     for i in 0..(nums.len()) {
         let num_perms = nums.into_iter().permutations(i + 1);
-        //let num_ops = ops.iter().permutations(i/2+1);
+        //let num_ops = ops.iter().permutations(v.len()-1);
         for v in num_perms {
             if debug { println!("v:{:?}", v); }
             if v.len() == 1 {
                 if debug { println!("{}", *v[0]); }
             } else {
-                let num_ops = ops.iter().permutations(v.len()-1);
+                let num_ops = product_ops(&ops,v.len()-1);
                 for optv in num_ops {
                     if debug {println!("v:{:?} optv:{:?}", v, optv);}
                     let mut rvect: Vec<Ops> = Vec::new();
@@ -241,47 +224,6 @@ fn gen_rpn(nums:&[i32], ans: i32) -> i32 { //Vec<Sdata> {
                     }
                 }
             }
-
-            /*
-            println!("v {:?}", v);
-            if v.len() == 1 {
-                //return *v[0];
-            } else if v.len() == 2 {
-                for opt in ops.iter() {
-                    let mut rvect: Vec<Ops> = Vec::new();
-                    rvect.push(Ops::Num(*v[0]));
-                    rvect.push(Ops::Num(*v[1]));
-                    rvect.push(opt.clone());
-                    //print!("    rpn_vec{:?}", rvect, );
-                    let num = rpn_vec(rvect);
-                    println!("= {:?}", num);
-                }
-            } else {
-                let mut rvect: Vec<Ops> = Vec::new();
-                num_ops
-                for opt in ops.iter() {
-                     rvect.push(Ops::Num(*v[0]));
-                     rvect.push(Ops::Num(*v[1]));
-                     rvect.push(opt.clone());
-                     //print!("    rpn_vec{:?}", rvect, );
-                     //let num = rpn_vec(rvect);
-                     //println!("= {:?}", num);
-                }
-                let mut n = 2;
-                while n < v.len() {
-                    //for opt in ops.iter() {
-                        rvect.push(Ops::Num(*v[n]));
-                        n += 1;
-                        rvect.push(Ops::Add);
-                        //rvect.push(opt.clone());
-                        //print!("    rpn_vec{:?}", rvect, );
-                    //} // TODO: groupings
-                }
-                let num = rpn_vec(rvect);
-                println!("= {:?}", num);
-            }
-
-             */
         }
     }
     return 9999; // ERROR
@@ -311,9 +253,26 @@ fn main() {
     rvect.push(Ops::Sub);
     rvect.push(Ops::Div);
     println!("= {:?}", rpn_vec(&rvect));
+
+
+    let list= [1,2,3,4];
+    println!("Permutations:");
+    let mut n = 0;
+    for i in list.iter().permutations(2) {
+        println!("{}: {:?}", n,i);
+        n += 1;
+    }
+    n = 0;
+    println!("Product:");
+    for i in product(&list, 3) {
+        println!("{}: {:?}", n,i);
+        n += 1;
+    }
     */
-    gen_rpn(&[2,3,4,20,100], 52);
+
+    gen_rpn(&[3,6,25,50,75,100], 352);
+
+    // https://www.mirror.co.uk/news/weird-news/countdown-reveals-ultimate-maths-wizard-12227740
+    gen_rpn(&[3,6,25,50,75,100], 952);
 
 }
-
-
