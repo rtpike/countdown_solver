@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use std::fmt;
+use std::error;
 #[macro_use] extern crate itertools;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -11,11 +12,25 @@ enum Ops {
     Num(i32),
 }
 
+#[derive(PartialEq, Debug)]
 enum RpnErr {
     DivZero,
     DivRem,
-    Stack
+    Stack,
 }
+
+impl fmt::Display for RpnErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let description = match *self {
+            RpnErr::DivZero => "Divide by zero",
+            RpnErr::DivRem => "Divide remainder",
+            RpnErr::Stack => "Stack size",
+        };
+        f.write_str(description)
+    }
+}
+
+impl error::Error for RpnErr {}
 
 impl fmt::Display for Ops {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -72,7 +87,7 @@ fn product(vector: &[i32], n: i32) -> Vec<Vec<i32>> {
 
 
 /// Reverse Polish Notation from vector
-fn rpn_vec(rvec: &Vec<Ops>) -> i32 {
+fn rpn_vec(rvec: &Vec<Ops>) -> Result<i32,RpnErr> {
     let mut stack: Vec<i32> = vec![];
     let debug = false;
 
@@ -104,10 +119,12 @@ fn rpn_vec(rvec: &Vec<Ops>) -> i32 {
                 let a = stack.pop().expect("missing second operand");
                 if b == 0 {
                     if debug {println!("ERROR: div by zero {}/{}", a, b);}
-                    return -9900;
+                    //return -9900;
+                    return Err(RpnErr::DivZero)
                 }  else if a % b != 0 {
                     if debug {println!("ERROR: div remainder {}/{} = {} rem {}", a, b, a / b , a % b );}
-                    return -9901;
+                    //return -9901;
+                    return Err(RpnErr::DivRem)
                 } else {
                     stack.push(a / b);
                 }
@@ -121,10 +138,11 @@ fn rpn_vec(rvec: &Vec<Ops>) -> i32 {
         if debug { println!("calculate {:?}", stack); }
     }
     if stack.len() == 1 {
-        stack.pop().unwrap()
+        Ok(stack.pop().unwrap())
     } else {
         println!(" ERROR: extra values in stack {:?}", stack);
-        return -9999
+        //return -9999
+        Err(RpnErr::Stack)
     }
 }
 
@@ -216,11 +234,11 @@ fn gen_rpn(nums:&[i32], ans: i32) -> i32 { //Vec<Sdata> {
                     }
                     let num = rpn_vec(&rvect);
                     //println!("= {:?}", num);
-                    if num == ans || debug {
+                    if num == Ok(ans) || debug {
                         for token in rvect.iter() {
                             print!("{} ", token.to_string());
                         }
-                        println!("= {}", num)
+                        println!("= {}", num.unwrap())
                     }
                 }
             }
