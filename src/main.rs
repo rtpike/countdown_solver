@@ -1,6 +1,10 @@
 use itertools::Itertools;
 use std::fmt;
 use std::error;
+
+use threadpool::ThreadPool;
+//use std::sync::mpsc::channel;
+
 #[macro_use] extern crate itertools;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -198,7 +202,7 @@ fn rpn(text: &str) -> f64 {
 }
 
 /// generator that produces a RPN vector using the given numbers
-fn gen_rpn(nums:&[i32], ans: i32) -> i32 { //Vec<Sdata> {
+fn gen_rpn(nums: &'static [i32], ans: i32) -> i32 { //Vec<Sdata> {
     println!("nums {:?} ans: {}", nums, ans);
     let add = Ops::Add; // commutative
     let sub = Ops::Sub;
@@ -207,18 +211,22 @@ fn gen_rpn(nums:&[i32], ans: i32) -> i32 { //Vec<Sdata> {
     let ops = [add, sub, mult, div];
     let debug = false;
 
-    // TOD: use a tree instead of vect
+    // TODO: use a tree instead of vect?
+    let pool = ThreadPool::new(6);
     for i in 0..(nums.len()) {
         let num_perms = nums.into_iter().permutations(i + 1);
         //let num_ops = ops.iter().permutations(v.len()-1);
         for v in num_perms {
+
             if debug { println!("v:{:?}", v); }
             if v.len() == 1 {
                 if debug { println!("{}", *v[0]); }
             } else {
-                let num_ops = product_ops(&ops,v.len()-1);
+                let num_ops = product_ops(&ops, v.len() - 1);
+                // start thread
+                pool.execute(move || {
                 for optv in num_ops {
-                    if debug {println!("v:{:?} optv:{:?}", v, optv);}
+                    if debug { println!("v:{:?} optv:{:?}", v, optv); }
                     let mut rvect: Vec<Ops> = Vec::new();
                     let mut y = 0;
                     for x in 0..optv.len() {
@@ -228,7 +236,7 @@ fn gen_rpn(nums:&[i32], ans: i32) -> i32 { //Vec<Sdata> {
                         }
                         if y < v.len() {
                             rvect.push(Ops::Num(*v[y]));
-                            y +=1;
+                            y += 1;
                         }
                         rvect.push(optv[x].clone());
                     }
@@ -241,9 +249,11 @@ fn gen_rpn(nums:&[i32], ans: i32) -> i32 { //Vec<Sdata> {
                         println!("= {}", num.unwrap())
                     }
                 }
+                }); // end thread
             }
-        }
+        } // end num_perms
     }
+    pool.join();
     return 9999; // ERROR
 }
 
