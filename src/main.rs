@@ -3,7 +3,10 @@ use std::fmt;
 use std::error;
 
 use threadpool::ThreadPool;
-//use std::sync::mpsc::channel;
+use std::sync::Mutex;
+use std::sync::Arc;
+//use std::sync::atomic::{AtomicUsize, Ordering};
+
 
 #[macro_use] extern crate itertools;
 
@@ -60,22 +63,6 @@ impl fmt::Display for Ops {
 
 fn product_ops(vector: &[Ops], n: usize) -> Vec<Vec<Ops>> {
     let mut result: Vec<Vec<Ops>> = vec![vec![]];
-
-    for _ in 0..n {
-        result = iproduct!(result.iter(), vector.iter())
-            .map(|(v, x)| {
-                let mut v1 = v.clone();
-                v1.push(*x);
-                v1
-            })
-            .collect();
-    }
-    result
-}
-
-
-fn product(vector: &[i32], n: i32) -> Vec<Vec<i32>> {
-    let mut result: Vec<Vec<i32>> = vec![vec![]];
 
     for _ in 0..n {
         result = iproduct!(result.iter(), vector.iter())
@@ -152,7 +139,7 @@ fn rpn_vec(rvec: &Vec<Ops>) -> Result<i32,RpnErr> {
 
 
 /// Reverse Polish Notation from string
-#[warn(dead_code)]
+#[allow(dead_code)]
 fn rpn(text: &str) -> f64 {
     let tokens = text.split_whitespace();
     let mut stack: Vec<f64> = vec![];
@@ -202,7 +189,7 @@ fn rpn(text: &str) -> f64 {
 }
 
 /// generator that produces a RPN vector using the given numbers
-fn gen_rpn(nums: &'static [i32], ans: i32) -> i32 { //Vec<Sdata> {
+fn gen_rpn(nums: &'static [i32], ans: i32) -> u32 { //Vec<Sdata> {
     println!("nums {:?} ans: {}", nums, ans);
     let add = Ops::Add; // commutative
     let sub = Ops::Sub;
@@ -210,11 +197,13 @@ fn gen_rpn(nums: &'static [i32], ans: i32) -> i32 { //Vec<Sdata> {
     let div = Ops::Div;
     let ops = [add, sub, mult, div];
     let debug = false;
+    let a_solutions = Arc::new(Mutex::new(0)); //Mutex::new(0);
 
     // TODO: use a tree instead of vect?
     let pool = ThreadPool::new(6);
+
     for i in 0..(nums.len()) {
-        let num_perms = nums.into_iter().permutations(i + 1);
+        let num_perms = nums.iter().permutations(i + 1);
         //let num_ops = ops.iter().permutations(v.len()-1);
         for v in num_perms {
 
@@ -224,12 +213,13 @@ fn gen_rpn(nums: &'static [i32], ans: i32) -> i32 { //Vec<Sdata> {
             } else {
                 let num_ops = product_ops(&ops, v.len() - 1);
                 // start thread
+                let c_solutions = Arc::clone(&a_solutions);
                 pool.execute(move || {
                 for optv in num_ops {
                     if debug { println!("v:{:?} optv:{:?}", v, optv); }
                     let mut rvect: Vec<Ops> = Vec::new();
                     let mut y = 0;
-                    for x in 0..optv.len() {
+                    for op in &optv {
                         if y < v.len() {
                             rvect.push(Ops::Num(*v[y]));
                             y += 1;
@@ -238,7 +228,7 @@ fn gen_rpn(nums: &'static [i32], ans: i32) -> i32 { //Vec<Sdata> {
                             rvect.push(Ops::Num(*v[y]));
                             y += 1;
                         }
-                        rvect.push(optv[x].clone());
+                        rvect.push(*op);
                     }
                     let num = rpn_vec(&rvect);
                     //println!("= {:?}", num);
@@ -246,7 +236,10 @@ fn gen_rpn(nums: &'static [i32], ans: i32) -> i32 { //Vec<Sdata> {
                         for token in rvect.iter() {
                             print!("{} ", token.to_string());
                         }
-                        println!("= {}", num.unwrap())
+                        println!("= {}", num.unwrap());
+                        let mut solutions = c_solutions.lock().unwrap();
+                        *solutions += 1;
+                        drop(solutions);
                     }
                 }
                 }); // end thread
@@ -254,7 +247,7 @@ fn gen_rpn(nums: &'static [i32], ans: i32) -> i32 { //Vec<Sdata> {
         } // end num_perms
     }
     pool.join();
-    return 9999; // ERROR
+    return *a_solutions.lock().unwrap();
 }
 
 
@@ -298,9 +291,26 @@ fn main() {
     }
     */
 
-    gen_rpn(&[3,6,25,50,75,100], 352);
+    println!("Matches found: {}", gen_rpn(&[3,6,25,50,75,100], 352));
 
     // https://www.mirror.co.uk/news/weird-news/countdown-reveals-ultimate-maths-wizard-12227740
-    gen_rpn(&[3,6,25,50,75,100], 952);
+    println!("Matches found: {}", gen_rpn(&[3,6,25,50,75,100], 952));
+
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gen_rpn_352() {
+        assert_eq!(gen_rpn(&[3,6,25,50,75,100], 352), 12);
+    }
+
+    #[test]
+    fn gen_rpn_952() {
+        assert!(gen_rpn(&[3,6,25,50,75,100], 952) > 1);
+    }
 
 }
